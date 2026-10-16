@@ -1,0 +1,11 @@
+.DS_Store
+
+# Compiled files
+*.o
+*.obj
+*.exe
+*.out
+
+# Build directories
+build/
+cmake-build-*/
