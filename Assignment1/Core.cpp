@@ -1,0 +1,293 @@
+#include "Core.hpp"
+
+Core::Core()
+{
+    fileName = "";
+    baseName = "";
+    width = 0;
+    height = 0;
+}
+
+Core::~Core()
+{
+    std::cout << "Releasing the memory... done." << std::endl;
+}
+
+void Core::run()
+{
+    std::cout << "=== DATA STRUCTURES - ASSIGNMENT 1 ===" << std::endl;
+
+    if (stage1LoadImage())
+    {
+        stage2TestImage();
+        stage3Manipulation();
+    }
+}
+
+// STAGE 1: ask the name of the image, load it and push every pixel into the stack
+bool Core::stage1LoadImage()
+{
+    bool loaded = false;
+    bool quit = false;
+
+    std::cout << std::endl << "--- STAGE 1: loading the image ---" << std::endl;
+
+    // ask again until the image can be loaded (or the user types q)
+    while (!loaded && !quit)
+    {
+        std::cout << "Name of the BMP image (q to quit): ";
+        std::cin >> fileName;
+
+        // q, or no more input (Ctrl+D) -> stop asking
+        if (fileName == "q" || std::cin.fail())
+        {
+            quit = true;
+        }
+        else
+        {
+            TinyImageJM image(fileName);  // the teacher's library reads the file
+
+            if (image.loadImageFromDisk())
+            {
+                loaded = true;
+                pushPixelsFromImage(image);
+            }
+            else
+            {
+                std::cout << "  Could not load it: " << image.getInternalError() << std::endl;
+            }
+        }
+    }
+
+    if (loaded)
+    {
+        Pixel topPixel = pixelStack.top();
+        std::cout << "  Image: " << width << " x " << height << " = " << width * height << " pixels" << std::endl;
+        std::cout << "  Pixels in the stack: " << pixelStack.getSize() << ", top (= last pixel of the file): ("
+                  << (int)topPixel.getRed() << "," << (int)topPixel.getGreen() << "," << (int)topPixel.getBlue()
+                  << ")" << std::endl;
+    }
+
+    return loaded;
+}
+
+// reads the size and every pixel of the loaded image and pushes the pixels into the stack
+void Core::pushPixelsFromImage(TinyImageJM& p_image)
+{
+    width = p_image.getWidth();
+    height = p_image.getHeight();
+    baseName = fileName.substr(0, fileName.find_last_of('.'));
+    unsigned char* bytes = p_image.getImagePointertoInternal();
+
+    // every pixel has 3 bytes in the order Blue, Green, Red.
+    // we push them in the same order as in the file (BMP starts with the bottom row)
+    for (int i = 0; i < width * height; i++)
+    {
+        pixelStack.push(Pixel(bytes[i * 3 + 2], bytes[i * 3 + 1], bytes[i * 3]));
+    }
+}
+
+// STAGE 2: pop all pixels to write a copy of the image (<name>_test.bmp).
+// Every popped pixel goes into a helper stack and back at the end,
+// so the stack is the same as before.
+void Core::stage2TestImage()
+{
+    StackDS helper;
+    int index = pixelStack.getSize() - 1;  // the top is the LAST pixel of the file
+    std::string outName = baseName + "_test.bmp";
+
+    std::cout << std::endl << "--- STAGE 2: test image ---" << std::endl;
+
+    // malloc and not new, because the library frees this memory with free()
+    unsigned char* bytes = (unsigned char*)malloc(width * height * 3);
+
+    while (!pixelStack.isEmpty())
+    {
+        Pixel pixel = pixelStack.pop();
+        bytes[index * 3] = pixel.getBlue();
+        bytes[index * 3 + 1] = pixel.getGreen();
+        bytes[index * 3 + 2] = pixel.getRed();
+        helper.push(pixel);
+        index--;
+    }
+    std::cout << "  All pixels popped, helper stack has " << helper.getSize() << " pixels" << std::endl;
+
+    // put everything back -> same order as at the start
+    while (!helper.isEmpty())
+    {
+        pixelStack.push(helper.pop());
+    }
+
+    saveImage(bytes, outName);
+    std::cout << "  The stack still has " << pixelStack.getSize() << " pixels" << std::endl;
+}
+
+// STAGE 3: stack -> 6 stacks -> queue -> list of lists -> new image
+void Core::stage3Manipulation()
+{
+    std::cout << std::endl << "--- STAGE 3: data structure manipulation ---" << std::endl;
+
+    distributeToStacks();
+    std::cout << "  Step 1: pixels distributed into the 6 stacks" << std::endl;
+    printStackSizes();
+
+    fillQueue();
+    std::cout << "  Step 2: queue filled with " << pixelQueue.getSize() << " pixels" << std::endl;
+    printStackSizes();
+
+    fillListOfLists();
+    std::cout << "  Step 3: list of lists has " << imageList.getNumRows() << " rows of " << width
+              << " pixels (queue now: " << pixelQueue.getSize() << ")" << std::endl;
+
+    saveListAsImage(baseName + "_stage3.bmp");
+}
+
+// the rules of the assignment, the counter starts with 1.
+// the order of the ifs matters: 6 is divisible by 2 and by 3, but the first rule wins -> stack 1
+int Core::chooseStack(int p_pixelNumber)
+{
+    int stackNumber = 6;  // "otherwise"
+
+    if (p_pixelNumber == 1 || p_pixelNumber % 2 == 0)
+    {
+        stackNumber = 1;
+    }
+    else if (p_pixelNumber % 3 == 0)
+    {
+        stackNumber = 2;
+    }
+    else if (p_pixelNumber % 5 == 0)
+    {
+        stackNumber = 3;
+    }
+    else if (p_pixelNumber % 7 == 0)
+    {
+        stackNumber = 4;
+    }
+    else if (p_pixelNumber % 11 == 0)
+    {
+        stackNumber = 5;
+    }
+
+    return stackNumber;
+}
+
+// take every pixel out of the main stack and put it into one of the 6 stacks
+void Core::distributeToStacks()
+{
+    int pixelNumber = 1;
+
+    while (!pixelStack.isEmpty())
+    {
+        stacks[chooseStack(pixelNumber) - 1].push(pixelStack.pop());  // -1: the array starts at 0
+        pixelNumber++;
+    }
+}
+
+// position 1 and every even position -> from stack 1
+// odd positions -> from stack 6 until it is empty, then 5, 4, 3, 2
+void Core::fillQueue()
+{
+    int total = width * height;
+
+    for (int position = 1; position <= total; position++)
+    {
+        Pixel pixel;
+
+        if ((position == 1 || position % 2 == 0) && !stacks[0].isEmpty())
+        {
+            pixel = stacks[0].pop();
+        }
+        else
+        {
+            pixel = popFromOddStacks();
+        }
+        pixelQueue.enqueue(pixel);
+    }
+}
+
+// first stack that is not empty, starting with stack 6 (index 5) and going down.
+// if 6..2 are all empty the loop stops at index 0 (stack 1)
+Pixel Core::popFromOddStacks()
+{
+    int index = 5;
+
+    while (index > 0 && stacks[index].isEmpty())
+    {
+        index--;
+    }
+    Pixel result = stacks[index].pop();
+
+    return result;
+}
+
+// the first "width" pixels of the queue are row 0, the next "width" are row 1, ...
+void Core::fillListOfLists()
+{
+    for (int y = 0; y < height; y++)
+    {
+        RowListDS* row = new RowListDS();  // deleted by the destructor of imageList
+
+        for (int x = 0; x < width; x++)
+        {
+            row->insertEnd(pixelQueue.dequeue());
+        }
+        imageList.addRow(row);
+    }
+}
+
+// write the list of lists to a file, row by row.
+// we only READ the nodes with pointers (nothing in the list is changed)
+// and WRITE the colours into a new block of bytes
+void Core::saveListAsImage(std::string p_fileName)
+{
+    unsigned char* bytes = (unsigned char*)malloc(width * height * 3);
+    int index = 0;
+    RowListDS* row = imageList.getFirstRow();
+
+    while (row != nullptr)
+    {
+        Pixel* pixel = row->getFirst();
+
+        while (pixel != nullptr)
+        {
+            bytes[index * 3] = pixel->getBlue();
+            bytes[index * 3 + 1] = pixel->getGreen();
+            bytes[index * 3 + 2] = pixel->getRed();
+            index++;
+            pixel = pixel->getNext();
+        }
+        row = row->getNextRow();
+    }
+
+    saveImage(bytes, p_fileName);
+}
+
+// gives the bytes to the library and writes the file
+// (p_bytes must be made with malloc, the library frees it with free())
+void Core::saveImage(unsigned char* p_bytes, std::string p_fileName)
+{
+    TinyImageJM output("new.bmp");
+    output.setNewImagePointerWithOldRemoval(p_bytes, width, height);
+    remove(p_fileName.c_str());  // the library does not overwrite old files
+
+    if (output.saveImageToDisk(p_fileName) == 0)
+    {
+        std::cout << "  Image saved: " << p_fileName << std::endl;
+    }
+    else
+    {
+        std::cout << "  ERROR: could not save " << p_fileName << std::endl;
+    }
+}
+
+// the sizes of the 6 stacks in one line
+void Core::printStackSizes()
+{
+    std::cout << "    stack sizes: ";
+    for (int i = 0; i < 6; i++)
+    {
+        std::cout << "S" << (i + 1) << "=" << stacks[i].getSize() << "  ";
+    }
+    std::cout << std::endl;
+}
