@@ -18,7 +18,8 @@ public:
     ~RowListDS();
 
     void insertEnd(Pixel p_pixel);
-
+    void insertSorted(Pixel p_pixel, char p_component);  // insertion sort step (by R, G or B)
+    
     Pixel* getFirst();  // to READ the row: start here and follow getNext() until nullptr
     int getSize();
     bool isEmpty();

@@ -41,3 +41,19 @@ void Pixel::setNext(Pixel* p_next)
 {
     next = p_next;
 }
+
+int Pixel::getComponent(char p_component)
+{
+    int value = blue;
+
+    if (p_component == 'R')
+    {
+        value = red;
+    }
+    else if (p_component == 'G')
+    {
+        value = green;
+    }
+
+    return value;
+}

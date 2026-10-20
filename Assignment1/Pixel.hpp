@@ -18,6 +18,7 @@ public:
     unsigned char getRed();
     unsigned char getGreen();
     unsigned char getBlue();
+    int getComponent(char p_component);  // 'R', 'G' or 'B' (used by the sort)
 
     Pixel* getNext();
     void setNext(Pixel* p_next);
