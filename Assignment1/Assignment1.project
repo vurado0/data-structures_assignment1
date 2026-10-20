@@ -123,7 +123,7 @@
     <File Name="peque-image-manager/TinyImageJM.hpp"/>
   </VirtualDirectory>
   <VirtualDirectory Name="test-images">
+    <File Name="fuji_mid.bmp"/>
     <File Name="Sample-im001.bmp"/>
-    <File Name="fuji_1080x608.bmp"/>
   </VirtualDirectory>
 </CodeLite_Project>

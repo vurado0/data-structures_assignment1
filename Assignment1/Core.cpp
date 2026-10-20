@@ -21,9 +21,7 @@ void Core::run()
     {
         stage2TestImage();
         stage3Manipulation();
-        stage2TestImage();
-        stage3Manipulation();
-        stage4Menu();          // <- new
+        stage4Menu();
     }
 }
 
@@ -66,7 +64,7 @@ bool Core::stage1LoadImage()
     {
         Pixel topPixel = pixelStack.top();
         std::cout << "  Image: " << width << " x " << height << " = " << width * height << " pixels" << std::endl;
-        std::cout << "  Pixels in the stack: " << pixelStack.getSize() << ", top (= last pixel of the file): ("
+        std::cout << "  Pixels in the stack: " << width * height << ", top (= last pixel of the file): ("
                   << (int)topPixel.getRed() << "," << (int)topPixel.getGreen() << "," << (int)topPixel.getBlue()
                   << ")" << std::endl;
     }
@@ -96,14 +94,20 @@ void Core::pushPixelsFromImage(TinyImageJM& p_image)
 void Core::stage2TestImage()
 {
     StackDS helper;
-    int index = pixelStack.getSize() - 1;  // the top is the LAST pixel of the file
+    int index = width * height - 1;  // the top is the LAST pixel of the file
+    int popped = 0;
+    int pushedBack = 0;
     std::string outName = baseName + "_test.bmp";
 
     std::cout << std::endl << "--- STAGE 2: test image ---" << std::endl;
 
-    // malloc and not new, because the library frees this memory with free()
-    unsigned char* bytes = (unsigned char*)malloc(width * height * 3);
+    // the library loads the image again and makes the memory for the pixels itself,
+    // we only overwrite the pixels (no array of our own on the heap)
+    TinyImageJM output(fileName);
+    output.loadImageFromDisk();
+    unsigned char* bytes = output.getImagePointertoInternal();
 
+    // pop until the stack is empty
     while (!pixelStack.isEmpty())
     {
         Pixel pixel = pixelStack.pop();
@@ -112,17 +116,19 @@ void Core::stage2TestImage()
         bytes[index * 3 + 2] = pixel.getRed();
         helper.push(pixel);
         index--;
+        popped++;
     }
-    std::cout << "  All pixels popped, helper stack has " << helper.getSize() << " pixels" << std::endl;
+    std::cout << "  " << popped << " pixels popped and pushed into the helper stack" << std::endl;
 
     // put everything back -> same order as at the start
     while (!helper.isEmpty())
     {
         pixelStack.push(helper.pop());
+        pushedBack++;
     }
 
-    saveImage(bytes, outName);
-    std::cout << "  The stack still has " << pixelStack.getSize() << " pixels" << std::endl;
+    saveImage(output, outName);
+    std::cout << "  " << pushedBack << " pixels pushed back, the stack is like at the start" << std::endl;
 }
 
 // STAGE 3: stack -> 6 stacks -> queue -> list of lists -> new image
@@ -130,13 +136,29 @@ void Core::stage3Manipulation()
 {
     std::cout << std::endl << "--- STAGE 3: data structure manipulation ---" << std::endl;
 
-    distributeToStacks();
     std::cout << "  Step 1: pixels distributed into the 6 stacks" << std::endl;
-    printStackSizes();
+    distributeToStacks();
 
     fillQueue();
     std::cout << "  Step 2: queue filled with " << pixelQueue.getSize() << " pixels" << std::endl;
-    printStackSizes();
+
+    // check with isEmpty() that the 6 stacks were emptied completely
+    bool allEmpty = true;
+    for (int i = 0; i < 6; i++)
+    {
+        if (!stacks[i].isEmpty())
+        {
+            allEmpty = false;
+        }
+    }
+    if (allEmpty)
+    {
+        std::cout << "    all 6 stacks are empty now" << std::endl;
+    }
+    else
+    {
+        std::cout << "    ERROR: not all stacks are empty" << std::endl;
+    }
 
     fillListOfLists();
     std::cout << "  Step 3: list of lists has " << imageList.getNumRows() << " rows of " << width
@@ -176,15 +198,26 @@ int Core::chooseStack(int p_pixelNumber)
 }
 
 // take every pixel out of the main stack and put it into one of the 6 stacks
+// the stacks do not know their size, so we count here how many pixels go into each one
 void Core::distributeToStacks()
 {
     int pixelNumber = 1;
+    int counter[6] = { 0, 0, 0, 0, 0, 0 };  // pixels per stack (only for the output)
 
     while (!pixelStack.isEmpty())
     {
-        stacks[chooseStack(pixelNumber) - 1].push(pixelStack.pop());  // -1: the array starts at 0
+        int index = chooseStack(pixelNumber) - 1;  // -1: the array starts at 0
+        stacks[index].push(pixelStack.pop());
+        counter[index]++;
         pixelNumber++;
     }
+
+    std::cout << "    pixels per stack: ";
+    for (int i = 0; i < 6; i++)
+    {
+        std::cout << "S" << (i + 1) << "=" << counter[i] << "  ";
+    }
+    std::cout << std::endl;
 }
 
 // position 1 and every even position -> from stack 1
@@ -241,10 +274,12 @@ void Core::fillListOfLists()
 
 // write the list of lists to a file, row by row.
 // we only READ the nodes with pointers (nothing in the list is changed)
-// and WRITE the colours into a new block of bytes
+// and WRITE the colours into the memory of the output image
 void Core::saveListAsImage(std::string p_fileName)
 {
-    unsigned char* bytes = (unsigned char*)malloc(width * height * 3);
+    TinyImageJM output(fileName);  // the library makes the memory for the pixels
+    output.loadImageFromDisk();
+    unsigned char* bytes = output.getImagePointertoInternal();
     int index = 0;
     RowListDS* row = imageList.getFirstRow();
 
@@ -254,7 +289,7 @@ void Core::saveListAsImage(std::string p_fileName)
         row = row->getNextRow();
     }
 
-    saveImage(bytes, p_fileName);
+    saveImage(output, p_fileName);
 }
 
 // READS the pixels of one row with pointers and WRITES them into p_bytes,
@@ -276,34 +311,12 @@ int Core::writeRowToBytes(RowListDS* p_row, unsigned char* p_bytes, int p_index)
     return index;
 }
 
-// READS the pixels of one row with pointers and WRITES them into p_bytes,
-// starting at pixel number p_index. returns the number of the next free pixel.
-int Core::writeRowToBytes(RowListDS* p_row, unsigned char* p_bytes, int p_index)
+// writes the image to a file with the teacher's library
+void Core::saveImage(TinyImageJM& p_image, std::string p_fileName)
 {
-    int index = p_index;
-    Pixel* pixel = p_row->getFirst();
-
-    while (pixel != nullptr)
-    {
-        p_bytes[index * 3] = pixel->getBlue();
-        p_bytes[index * 3 + 1] = pixel->getGreen();
-        p_bytes[index * 3 + 2] = pixel->getRed();
-        index++;
-        pixel = pixel->getNext();
-    }
-
-    return index;
-}
-
-// gives the bytes to the library and writes the file
-// (p_bytes must be made with malloc, the library frees it with free())
-void Core::saveImage(unsigned char* p_bytes, std::string p_fileName)
-{
-    TinyImageJM output("new.bmp");
-    output.setNewImagePointerWithOldRemoval(p_bytes, width, height);
     remove(p_fileName.c_str());  // the library does not overwrite old files
 
-    if (output.saveImageToDisk(p_fileName) == 0)
+    if (p_image.saveImageToDisk(p_fileName) == 0)
     {
         std::cout << "  Image saved: " << p_fileName << std::endl;
     }
@@ -313,22 +326,10 @@ void Core::saveImage(unsigned char* p_bytes, std::string p_fileName)
     }
 }
 
-// the sizes of the 6 stacks in one line
-void Core::printStackSizes()
-{
-    std::cout << "    stack sizes: ";
-    for (int i = 0; i < 6; i++)
-    {
-        std::cout << "S" << (i + 1) << "=" << stacks[i].getSize() << "  ";
-    }
-    std::cout << std::endl;
-}
-
-
 // ---------------------------------------------------------------
 // STAGE 4: menu
 // the options only READ the list of lists with pointers and WRITE the
-// result into a new block of bytes -> the list of lists is never changed
+// result into the memory of a new image -> the list of lists is never changed
 // ---------------------------------------------------------------
 void Core::stage4Menu()
 {
@@ -412,7 +413,9 @@ void Core::searchPixels()
 void Core::sortRows()
 {
     char component = askComponent();
-    unsigned char* bytes = (unsigned char*)malloc(width * height * 3);
+    TinyImageJM output(fileName);  // the library makes the memory for the pixels
+    output.loadImageFromDisk();
+    unsigned char* bytes = output.getImagePointertoInternal();
     int index = 0;
     std::string outName = baseName + "_sorted_" + component + ".bmp";
 
@@ -442,7 +445,7 @@ void Core::sortRows()
 
     std::cout << "  " << imageList.getNumRows() << " rows sorted by " << component
               << " (the list of lists was not changed)" << std::endl;
-    saveImage(bytes, outName);
+    saveImage(output, outName);
 }
 
 // MENU 3: image reconstruction = FLOP (mirror across a vertical axis).
@@ -450,7 +453,9 @@ void Core::sortRows()
 // so the left and the right side are swapped. the list of lists is only read.
 void Core::flopImage()
 {
-    unsigned char* bytes = (unsigned char*)malloc(width * height * 3);
+    TinyImageJM output(fileName);  // the library makes the memory for the pixels
+    output.loadImageFromDisk();
+    unsigned char* bytes = output.getImagePointertoInternal();
     int y = 0;
 
     RowListDS* row = imageList.getFirstRow();
@@ -474,7 +479,7 @@ void Core::flopImage()
 
     std::cout << "  Flop: pixel (x, y) -> (" << width - 1 << " - x, y), " << imageList.getNumRows()
               << " rows mirrored (the list of lists was not changed)" << std::endl;
-    saveImage(bytes, baseName + "_flop.bmp");
+    saveImage(output, baseName + "_flop.bmp");
 }
 
 // prints the first 12 values (only the chosen colour) of a row
@@ -544,3 +549,4 @@ char Core::askComponent()
 
     return component;
 }
+

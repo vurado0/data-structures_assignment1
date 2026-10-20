@@ -3,7 +3,6 @@
 
 #include <cctype>   // toupper()
 #include <cstdio>   // remove()
-#include <cstdlib>  // malloc()
 #include <iostream>
 #include <string>
 
@@ -45,8 +44,7 @@ class Core
     void flopImage();
 
     // helpers
-    void saveImage(unsigned char* p_bytes, std::string p_fileName);
-    void printStackSizes();
+    void saveImage(TinyImageJM& p_image, std::string p_fileName);
     int writeRowToBytes(RowListDS* p_row, unsigned char* p_bytes, int p_index);
     void printRowValues(RowListDS* p_row, char p_component, std::string p_title);
     int askNumber(std::string p_text, int p_min, int p_max);
