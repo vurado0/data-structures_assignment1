@@ -257,6 +257,24 @@ void Core::saveListAsImage(std::string p_fileName)
     saveImage(bytes, p_fileName);
 }
 
+// READS the pixels of one row with pointers and WRITES them into p_bytes,
+// starting at pixel number p_index. returns the number of the next free pixel.
+int Core::writeRowToBytes(RowListDS* p_row, unsigned char* p_bytes, int p_index)
+{
+    int index = p_index;
+    Pixel* pixel = p_row->getFirst();
+
+    while (pixel != nullptr)
+    {
+        p_bytes[index * 3] = pixel->getBlue();
+        p_bytes[index * 3 + 1] = pixel->getGreen();
+        p_bytes[index * 3 + 2] = pixel->getRed();
+        index++;
+        pixel = pixel->getNext();
+    }
+
+    return index;
+}
 
 // READS the pixels of one row with pointers and WRITES them into p_bytes,
 // starting at pixel number p_index. returns the number of the next free pixel.
