@@ -1,0 +1,1 @@
+../build-Debug/Assignment1/peque-image-manager_TinyImageJM.cpp.o ../build-Debug/Assignment1/main.cpp.o ../build-Debug/Assignment1/RowListDS.cpp.o ../build-Debug/Assignment1/QueueDS.cpp.o ../build-Debug/Assignment1/Core.cpp.o ../build-Debug/Assignment1/StackDS.cpp.o ../build-Debug/Assignment1/ImageListDS.cpp.o ../build-Debug/Assignment1/Pixel.cpp.o

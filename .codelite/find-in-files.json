@@ -1,0 +1,23 @@
+{
+  "find_what_array": [
+    "stage 4"
+  ],
+  "find_what": "stage 4",
+  "exclude_patterns_array": [],
+  "exclude_patterns": "build-debug;build-release",
+  "replace_with_array": [
+    ""
+  ],
+  "replace_with": "",
+  "files_array": [
+    "*.cpp;*.cc;*.c;*.hpp;*.h;CMakeLists.txt;*.plist;*.rc"
+  ],
+  "files": "*.cpp;*.cc;*.c;*.hpp;*.h;CMakeLists.txt;*.plist;*.rc",
+  "where_array": [
+    "<Workspace Folder>"
+  ],
+  "where": "<Workspace Folder>",
+  "encoding": "ISO-8859-1",
+  "flags": 4099,
+  "files_scanner_flags": 1
+}

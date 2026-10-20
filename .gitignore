@@ -9,13 +9,3 @@
 # Build directories
 build/
 cmake-build-*/
-# Build output
-build-Debug/
-build-Release/
-
-# IDE / tooling
-.codelite/
-compile_commands.json
-compile_flags.txt
-Makefile
-*.mk
