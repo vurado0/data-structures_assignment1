@@ -21,6 +21,9 @@ void Core::run()
     {
         stage2TestImage();
         stage3Manipulation();
+        stage2TestImage();
+        stage3Manipulation();
+        stage4Menu();          // <- new
     }
 }
 
@@ -247,20 +250,31 @@ void Core::saveListAsImage(std::string p_fileName)
 
     while (row != nullptr)
     {
-        Pixel* pixel = row->getFirst();
-
-        while (pixel != nullptr)
-        {
-            bytes[index * 3] = pixel->getBlue();
-            bytes[index * 3 + 1] = pixel->getGreen();
-            bytes[index * 3 + 2] = pixel->getRed();
-            index++;
-            pixel = pixel->getNext();
-        }
+        index = writeRowToBytes(row, bytes, index);
         row = row->getNextRow();
     }
 
     saveImage(bytes, p_fileName);
+}
+
+
+// READS the pixels of one row with pointers and WRITES them into p_bytes,
+// starting at pixel number p_index. returns the number of the next free pixel.
+int Core::writeRowToBytes(RowListDS* p_row, unsigned char* p_bytes, int p_index)
+{
+    int index = p_index;
+    Pixel* pixel = p_row->getFirst();
+
+    while (pixel != nullptr)
+    {
+        p_bytes[index * 3] = pixel->getBlue();
+        p_bytes[index * 3 + 1] = pixel->getGreen();
+        p_bytes[index * 3 + 2] = pixel->getRed();
+        index++;
+        pixel = pixel->getNext();
+    }
+
+    return index;
 }
 
 // gives the bytes to the library and writes the file
@@ -290,4 +304,225 @@ void Core::printStackSizes()
         std::cout << "S" << (i + 1) << "=" << stacks[i].getSize() << "  ";
     }
     std::cout << std::endl;
+}
+
+
+// ---------------------------------------------------------------
+// STAGE 4: menu
+// the options only READ the list of lists with pointers and WRITE the
+// result into a new block of bytes -> the list of lists is never changed
+// ---------------------------------------------------------------
+void Core::stage4Menu()
+{
+    int option = 0;
+
+    do
+    {
+        std::cout << std::endl << "--- STAGE 4: menu ---" << std::endl;
+        std::cout << "  1. Search pixels by colour" << std::endl;
+        std::cout << "  2. Sort the pixels of every row (insertion sort)" << std::endl;
+        std::cout << "  3. Image reconstruction (flop: mirror left <-> right)" << std::endl;
+        std::cout << "  4. Exit" << std::endl;
+        option = askNumber("Option: ", 1, 4);
+
+        if (option == 1)
+        {
+            searchPixels();
+        }
+        else if (option == 2)
+        {
+            sortRows();
+        }
+        else if (option == 3)
+        {
+            flopImage();
+        }
+        else
+        {
+            std::cout << "  Exit: all the memory is released now." << std::endl;
+        }
+    } while (option != 4);
+}
+
+// MENU 1: print the coordinates (x,y) of every pixel with the colour typed by the user.
+// x = position in the row, y = row counted from the TOP of the picture
+// (the BMP file starts with the bottom row, so we turn the row number around)
+void Core::searchPixels()
+{
+    int found = 0;
+    int y = 0;
+
+    std::cout << "  Colour to search:" << std::endl;
+    int red = askNumber("    Red   (0-255): ", 0, 255);
+    int green = askNumber("    Green (0-255): ", 0, 255);
+    int blue = askNumber("    Blue  (0-255): ", 0, 255);
+
+    std::cout << "  Pixels with colour (" << red << "," << green << "," << blue << "):" << std::endl << "  ";
+
+    RowListDS* row = imageList.getFirstRow();
+    while (row != nullptr)
+    {
+        Pixel* pixel = row->getFirst();
+        int x = 0;
+
+        while (pixel != nullptr)
+        {
+            if (pixel->getRed() == red && pixel->getGreen() == green && pixel->getBlue() == blue)
+            {
+                std::cout << "(" << x << "," << (height - 1 - y) << ") ";
+                found++;
+
+                // 10 coordinates per line, so the list stays short
+                if (found % 10 == 0)
+                {
+                    std::cout << std::endl << "  ";
+                }
+            }
+            pixel = pixel->getNext();
+            x++;
+        }
+        row = row->getNextRow();
+        y++;
+    }
+
+    std::cout << std::endl << "  " << found << " pixel(s) found" << std::endl;
+}
+
+// MENU 2: sort the pixels of every row by R, G or B with INSERTION SORT.
+// every row is read with pointers and its pixels are inserted into a NEW list
+// (sortedRow), so the list of lists stays as it was at the start.
+void Core::sortRows()
+{
+    char component = askComponent();
+    unsigned char* bytes = (unsigned char*)malloc(width * height * 3);
+    int index = 0;
+    std::string outName = baseName + "_sorted_" + component + ".bmp";
+
+    RowListDS* row = imageList.getFirstRow();
+    while (row != nullptr)
+    {
+        RowListDS sortedRow;  // new list, it is deleted automatically at the end of each loop
+
+        // read every pixel of the row and insert it at its place in the new list
+        Pixel* pixel = row->getFirst();
+        while (pixel != nullptr)
+        {
+            sortedRow.insertSorted(*pixel, component);
+            pixel = pixel->getNext();
+        }
+
+        // show the first row as an example
+        if (row == imageList.getFirstRow())
+        {
+            printRowValues(row, component, "first row before");
+            printRowValues(&sortedRow, component, "first row after ");
+        }
+
+        index = writeRowToBytes(&sortedRow, bytes, index);  // write the sorted row into the new image
+        row = row->getNextRow();
+    }
+
+    std::cout << "  " << imageList.getNumRows() << " rows sorted by " << component
+              << " (the list of lists was not changed)" << std::endl;
+    saveImage(bytes, outName);
+}
+
+// MENU 3: image reconstruction = FLOP (mirror across a vertical axis).
+// the pixel in column x is written into column (width - 1 - x) of the same row,
+// so the left and the right side are swapped. the list of lists is only read.
+void Core::flopImage()
+{
+    unsigned char* bytes = (unsigned char*)malloc(width * height * 3);
+    int y = 0;
+
+    RowListDS* row = imageList.getFirstRow();
+    while (row != nullptr)
+    {
+        Pixel* pixel = row->getFirst();
+        int x = 0;
+
+        while (pixel != nullptr)
+        {
+            int index = y * width + (width - 1 - x);  // mirrored column
+            bytes[index * 3] = pixel->getBlue();
+            bytes[index * 3 + 1] = pixel->getGreen();
+            bytes[index * 3 + 2] = pixel->getRed();
+            pixel = pixel->getNext();
+            x++;
+        }
+        row = row->getNextRow();
+        y++;
+    }
+
+    std::cout << "  Flop: pixel (x, y) -> (" << width - 1 << " - x, y), " << imageList.getNumRows()
+              << " rows mirrored (the list of lists was not changed)" << std::endl;
+    saveImage(bytes, baseName + "_flop.bmp");
+}
+
+// prints the first 12 values (only the chosen colour) of a row
+void Core::printRowValues(RowListDS* p_row, char p_component, std::string p_title)
+{
+    int count = 0;
+    Pixel* pixel = p_row->getFirst();
+
+    std::cout << "  " << p_title << " (" << p_component << "): ";
+    while (pixel != nullptr && count < 12)
+    {
+        std::cout << pixel->getComponent(p_component) << " ";
+        pixel = pixel->getNext();
+        count++;
+    }
+    std::cout << "..." << std::endl;
+}
+
+// asks for a number until it is a number between p_min and p_max
+int Core::askNumber(std::string p_text, int p_min, int p_max)
+{
+    int number = p_min - 1;
+
+    while (number < p_min || number > p_max)
+    {
+        std::cout << p_text;
+        std::cin >> number;
+
+        if (std::cin.eof())
+        {
+            // no more input (Ctrl+D) -> take the last value (in the menu: Exit)
+            number = p_max;
+        }
+        else if (std::cin.fail())
+        {
+            // letters instead of a number -> clean cin and ask again
+            std::cin.clear();
+            std::cin.ignore(1000, '\n');
+            number = p_min - 1;
+        }
+
+        if (number < p_min || number > p_max)
+        {
+            std::cout << "  Please type a number from " << p_min << " to " << p_max << std::endl;
+        }
+    }
+
+    return number;
+}
+
+// asks R, G or B until the answer is correct (small letters are ok too)
+char Core::askComponent()
+{
+    char component = ' ';
+
+    while (component != 'R' && component != 'G' && component != 'B')
+    {
+        std::cout << "  Sort by which colour? (R/G/B): ";
+        std::cin >> component;
+
+        if (std::cin.eof())
+        {
+            component = 'R';  // no more input -> take R
+        }
+        component = toupper(component);
+    }
+
+    return component;
 }

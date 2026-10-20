@@ -1,6 +1,7 @@
 #ifndef CORE_HPP
 #define CORE_HPP
 
+#include <cctype>   // toupper()
 #include <cstdio>   // remove()
 #include <cstdlib>  // malloc()
 #include <iostream>
@@ -28,6 +29,7 @@ class Core
     void pushPixelsFromImage(TinyImageJM& p_image);
     void stage2TestImage();
     void stage3Manipulation();
+    void stage4Menu();
 
     // stage 3 step by step
     int chooseStack(int p_pixelNumber);
@@ -37,9 +39,18 @@ class Core
     void fillListOfLists();
     void saveListAsImage(std::string p_fileName);
 
+    // stage 4: menu options
+    void searchPixels();
+    void sortRows();
+    void flopImage();
+
     // helpers
     void saveImage(unsigned char* p_bytes, std::string p_fileName);
     void printStackSizes();
+    int writeRowToBytes(RowListDS* p_row, unsigned char* p_bytes, int p_index);
+    void printRowValues(RowListDS* p_row, char p_component, std::string p_title);
+    int askNumber(std::string p_text, int p_min, int p_max);
+    char askComponent();
 
 public:
     Core();
