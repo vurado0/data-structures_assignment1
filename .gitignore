@@ -1,3 +1,4 @@
+# macOS
 .DS_Store
 
 # Compiled files
@@ -8,4 +9,20 @@
 
 # Build directories
 build/
+build-Debug/
+build-Release/
 cmake-build-*/
+
+# CodeLite IDE state (per machine, per user)
+.codelite/
+*.session
+*.tags
+
+# Generated build files (CodeLite regenerates these from the .project,
+# they contain absolute paths from this machine)
+Makefile
+*.mk
+
+# clangd / tooling
+compile_commands.json
+compile_flags.txt

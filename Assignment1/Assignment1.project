@@ -123,6 +123,8 @@
     <File Name="peque-image-manager/TinyImageJM.hpp"/>
   </VirtualDirectory>
   <VirtualDirectory Name="test-images">
-    <File Name="Sample-im001.bmp"/>
+    <File Name="small.bmp"/>
+    <File Name="mid.bmp"/>
+    <File Name="big.bmp"/>
   </VirtualDirectory>
 </CodeLite_Project>
