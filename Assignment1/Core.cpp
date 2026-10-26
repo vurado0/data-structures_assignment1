@@ -451,7 +451,7 @@ void Core::sortRows()
 // MENU 3: image reconstruction = FLOP (mirror across a vertical axis).
 // the pixel in column x is written into column (width - 1 - x) of the same row,
 // so the left and the right side are swapped. the list of lists is only read.
-void Core::flopImage()
+/*void Core::flopImage()
 {
     TinyImageJM output(fileName);  // the library makes the memory for the pixels
     output.loadImageFromDisk();
@@ -496,6 +496,97 @@ void Core::printRowValues(RowListDS* p_row, char p_component, std::string p_titl
         count++;
     }
     std::cout << "..." << std::endl;
+}*/
+
+void Core::flopImage()
+{
+    QueueDS reconstructionQueue;
+    StackDS reverseOrder[6];
+    StackDS reconstructedStacks[6];
+    int remaining[6] = { 0, 0, 0, 0, 0, 0 };
+    int total = width * height;
+
+    // Count the pixels originally assigned to each stack.
+    for (int pixelNumber = 1; pixelNumber <= total; pixelNumber++)
+    {
+        int stackIndex = chooseStack(pixelNumber) - 1;
+        remaining[stackIndex]++;
+    }
+
+    // Copy the list of lists into a queue in its current order.
+    RowListDS* row = imageList.getFirstRow();
+
+    while (row != nullptr)
+    {
+        Pixel* pixel = row->getFirst();
+
+        while (pixel != nullptr)
+        {
+            reconstructionQueue.enqueue(*pixel);
+            pixel = pixel->getNext();
+        }
+
+        row = row->getNextRow();
+    }
+
+    // Reverse the queue-filling step and route pixels back to their stacks.
+    for (int position = 1; position <= total; position++)
+    {
+        int stackIndex = -1;
+
+        if ((position == 1 || position % 2 == 0) && remaining[0] > 0)
+        {
+            stackIndex = 0;
+        }
+        else
+        {
+            stackIndex = 5;
+
+            while (stackIndex >= 0 && remaining[stackIndex] == 0)
+            {
+                stackIndex--;
+            }
+        }
+
+        if (stackIndex >= 0)
+        {
+            reverseOrder[stackIndex].push(reconstructionQueue.dequeue());
+            remaining[stackIndex]--;
+        }
+    }
+
+    // Reverse each stack's removal order to restore its original contents.
+    for (int stackIndex = 0; stackIndex < 6; stackIndex++)
+    {
+        while (!reverseOrder[stackIndex].isEmpty())
+        {
+            reconstructedStacks[stackIndex].push(reverseOrder[stackIndex].pop());
+        }
+    }
+
+    TinyImageJM output(fileName);
+    output.loadImageFromDisk();
+    unsigned char* bytes = output.getImagePointertoInternal();
+
+    // Recreate the original file order, writing each pixel to its mirrored column.
+    for (int pixelNumber = total; pixelNumber >= 1; pixelNumber--)
+    {
+        int stackIndex = chooseStack(pixelNumber) - 1;
+        Pixel pixel = reconstructedStacks[stackIndex].pop();
+
+        int originalIndex = total - pixelNumber;
+        int rowIndex = originalIndex / width;
+        int columnIndex = originalIndex % width;
+        int mirroredIndex = rowIndex * width + (width - 1 - columnIndex);
+
+        bytes[mirroredIndex * 3] = pixel.getBlue();
+        bytes[mirroredIndex * 3 + 1] = pixel.getGreen();
+        bytes[mirroredIndex * 3 + 2] = pixel.getRed();
+    }
+
+    std::cout << "  Flop: original image reconstructed and mirrored left to right"
+              << std::endl;
+    saveImage(output, baseName + "_flop.bmp");
 }
 
 // asks for a number until it is a number between p_min and p_max
