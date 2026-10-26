@@ -481,6 +481,7 @@ void Core::sortRows()
               << " rows mirrored (the list of lists was not changed)" << std::endl;
     saveImage(output, baseName + "_flop.bmp");
 }
+*/
 
 // prints the first 12 values (only the chosen colour) of a row
 void Core::printRowValues(RowListDS* p_row, char p_component, std::string p_title)
@@ -496,7 +497,7 @@ void Core::printRowValues(RowListDS* p_row, char p_component, std::string p_titl
         count++;
     }
     std::cout << "..." << std::endl;
-}*/
+}
 
 void Core::flopImage()
 {
