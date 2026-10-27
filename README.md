@@ -2,7 +2,7 @@
 
 ## Team
 
-- Kaito Snezhko — Student ID: ...
+- Kaito Snezhko — Student ID: 52407400
 - Ana Gasperov — Student ID: 116931401
 
 ## About
